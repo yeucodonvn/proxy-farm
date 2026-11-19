@@ -1,4 +1,4 @@
-import type { PortRow } from '../../shared/contracts';
+import { clampAutoRotateMin, type PortRow } from '../../shared/contracts';
 
 export type Scheduler = (ms: number, cb: () => void) => () => void;
 
@@ -51,7 +51,10 @@ export function createAutoRotateScheduler(options: AutoRotateSchedulerOptions): 
   }
 
   function sync(rows: PortRow[]): void {
-    const desired = new Map(rows.filter((r) => r.enabled && r.autoRotateMin > 0).map((r) => [r.key, r.autoRotateMin]));
+    // Clamped here too: a row loaded from an older state.json may hold any value.
+    const desired = new Map(
+      rows.filter((r) => r.enabled && clampAutoRotateMin(r.autoRotateMin) > 0).map((r) => [r.key, clampAutoRotateMin(r.autoRotateMin)]),
+    );
 
     // Snapshot the existing entries before touching `timers` at all: mutating a Map
     // (even deleting-then-reinserting the very key currently being visited) while a

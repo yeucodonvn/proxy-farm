@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PortRow } from '../../shared/contracts';
+import { MAX_AUTO_ROTATE_MIN, type PortRow } from '../../shared/contracts';
 import { createAutoRotateScheduler } from './auto-rotate';
 
 function row(key: string, autoRotateMin: number, enabled = true): PortRow {
@@ -31,6 +31,25 @@ describe('auto-rotate scheduler (spec §4.2/§6.5)', () => {
     expect(rotate).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(5 * 60_000);
     expect(rotate).toHaveBeenCalledTimes(2);
+  });
+
+  it('caps a huge interval at MAX_AUTO_ROTATE_MIN instead of overflowing the timer to 1 ms', async () => {
+    const rotate = vi.fn(async () => undefined);
+    const s = createAutoRotateScheduler({ rotate });
+    s.sync([row('a', 40_000)]); // 40 000 min * 60 000 ms > 2^31-1
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(rotate).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(MAX_AUTO_ROTATE_MIN * 60_000);
+    expect(rotate).toHaveBeenCalledTimes(1);
+    s.stopAll();
+  });
+
+  it('does not schedule a non-finite or negative interval', async () => {
+    const rotate = vi.fn(async () => undefined);
+    const s = createAutoRotateScheduler({ rotate });
+    s.sync([row('a', Infinity), row('b', Number.NaN), row('c', -5)]);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(rotate).not.toHaveBeenCalled();
   });
 
   it('does not schedule a row with autoRotateMin = 0', async () => {

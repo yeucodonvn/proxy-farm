@@ -403,6 +403,18 @@ export interface PortRow {
   autoRotateMin: number; // 0 = off
 }
 
+/** Longest auto-rotate interval (7 days). Node turns a timer delay above 2^31-1 ms
+ * (~24.8 days) into 1 ms, so an unbounded value would rotate the port non-stop. */
+export const MAX_AUTO_ROTATE_MIN = 7 * 24 * 60;
+
+/** `minutes` as a valid `autoRotateMin`: a whole number in 0…MAX_AUTO_ROTATE_MIN, 0 for
+ * anything that is not a finite positive number. */
+export function clampAutoRotateMin(minutes: unknown): number {
+  const n = typeof minutes === 'number' ? minutes : Number(minutes);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(MAX_AUTO_ROTATE_MIN, Math.floor(n));
+}
+
 export type ExportFormat = 'hostPortUserPass' | 'socks5Url' | 'hostPort' | 'curl' | 'csv';
 
 /** A port's bucket on the main screen's status filter and in the CSV export

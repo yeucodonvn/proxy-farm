@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { PortRow, ProxyFarmApi } from '../../shared/contracts';
+import { clampAutoRotateMin, MAX_AUTO_ROTATE_MIN, type PortRow, type ProxyFarmApi } from '../../shared/contracts';
 import { Icon } from '../ui/Icon';
 import { countryName } from '../ui/countryName';
 
@@ -125,9 +125,14 @@ export function PortDetailsDrawer({ row, api, colSpan = 7 }: PortDetailsDrawerPr
                 className="num-input"
                 type="number"
                 min={0}
+                max={MAX_AUTO_ROTATE_MIN}
                 defaultValue={row.autoRotateMin}
                 aria-label={t('main.autoRotate.label') as string}
-                onBlur={(e) => void api.setAutoRotate(row.key, Math.max(0, Number(e.target.value) || 0))}
+                onBlur={(e) => {
+                  const minutes = clampAutoRotateMin(e.target.value);
+                  e.target.value = String(minutes);
+                  void api.setAutoRotate(row.key, minutes);
+                }}
               />
               <span>{t('main.autoRotate.minutesSuffix')}</span>
             </div>
