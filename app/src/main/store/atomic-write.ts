@@ -1,9 +1,45 @@
+import { renameSync } from 'node:fs';
 import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 /** Windows: antivirus, the search indexer or a reader holding the target can make a rename
  * fail for a moment; these codes are worth another try, anything else is not. */
 const TRANSIENT_RENAME = new Set(['EPERM', 'EACCES', 'EBUSY']);
+
+function sleepSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+export interface RenameSyncRetryOptions {
+  retries?: number;
+  backoffMs?: number;
+  /** Injectable for tests. @default fs.renameSync */
+  rename?: (from: string, to: string) => void;
+  /** Injectable for tests. @default a blocking `Atomics.wait` sleep */
+  sleep?: (ms: number) => void;
+}
+
+/**
+ * `renameSync` for callers that must stay synchronous (the state store), retrying the
+ * same transient Windows codes as `writeFileAtomic` with a short blocking backoff
+ * (≤ 600 ms in all with the defaults, and only when a rename was refused).
+ */
+export function renameSyncWithRetry(from: string, to: string, opts: RenameSyncRetryOptions = {}): void {
+  const retries = opts.retries ?? 5;
+  const backoffMs = opts.backoffMs ?? 40;
+  const rename = opts.rename ?? renameSync;
+  const sleep = opts.sleep ?? sleepSync;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      rename(from, to);
+      return;
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code ?? '';
+      if (attempt >= retries || !TRANSIENT_RENAME.has(code)) throw err;
+      sleep(backoffMs * (attempt + 1));
+    }
+  }
+}
 
 /**
  * Writes `data` to `file` via a temp file + rename, so a crash never leaves half a file and

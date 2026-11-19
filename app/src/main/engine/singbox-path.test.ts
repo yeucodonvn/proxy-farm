@@ -59,9 +59,11 @@ describe('singboxPath', () => {
 });
 
 describe('assertSingboxVersion', () => {
+  // Spawns the real binary: under a full parallel run (and an antivirus scan of the
+  // first launch on Windows) that alone can exceed vitest's 5 s default.
   it('resolves for the real pinned 1.14.2 binary with required tags', async () => {
     await expect(assertSingboxVersion(REAL_BIN)).resolves.toBeUndefined();
-  });
+  }, 30_000);
 
   it('rejects when the binary reports a different version', async () => {
     const run = async () => versionOutput('1.13.0', 'with_gvisor,with_wireguard,with_openvpn');

@@ -2,6 +2,7 @@ import { lookup, resolve4 } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { networkInterfaces } from 'node:os';
 import {
+  clampAutoRotateMin,
   EXIT_IP_MODELS,
   isDynamicProvider,
   isTerminalState,
@@ -218,7 +219,14 @@ export type CredentialVerdict = 'verified' | 'rejected' | 'unverified' | 'unsupp
 function loadAccountSecret(secrets: SecretStore, secretRef: string): AccountSecret | null {
   const raw = secrets.loadSecret(secretRef);
   if (raw == null) return null;
-  return JSON.parse(raw) as AccountSecret;
+  // A corrupt/undecodable secret is "no secret" (the caller shows `secret-unavailable`),
+  // never an exception thrown out of an engine state-change callback.
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return typeof parsed === 'object' && parsed !== null ? (parsed as AccountSecret) : null;
+  } catch {
+    return null;
+  }
 }
 
 /** The first non-internal IPv4 address, for `exportPorts`'s LAN-sharing host (reviewer
@@ -987,17 +995,27 @@ export function createPortManager(deps: PortManagerDeps): PortManager {
     setTimeout(() => {
       if (findPort(key)?.state === waiting) void deps.engine.stop(key).catch(() => undefined);
     }, 0);
-    void verdict.then((v) => {
+    const stillWaiting = () => {
       const row = findPort(key);
       // Stopped, removed, restarted or moved meanwhile: that path owns the port now.
-      if (!row || !row.enabled || row.state !== waiting || row.server !== server) return;
-      const pinned = row as PortRow & { server: string };
-      if (v === 'verified') planRefusal(pinned, state);
-      else if (v === 'unverified') unverifiedRefusal(pinned, state);
-      // The credentials were replaced while the check ran: try again with the new ones.
-      else if (v === 'unsupported') restartElsewhere(key, 'credentials-changed');
-      // 'rejected': `credentialsRejected` has already failed every port of the account.
-    });
+      return row && row.enabled && row.state === waiting && row.server === server ? row : undefined;
+    };
+    void verdict
+      .then((v) => {
+        const row = stillWaiting();
+        if (!row) return;
+        const pinned = row as PortRow & { server: string };
+        if (v === 'verified') planRefusal(pinned, state);
+        else if (v === 'unverified') unverifiedRefusal(pinned, state);
+        // The credentials were replaced while the check ran: try again with the new ones.
+        else if (v === 'unsupported') restartElsewhere(key, 'credentials-changed');
+        // 'rejected': `credentialsRejected` has already failed every port of the account.
+      })
+      .catch(() => {
+        // Never leave the port parked on "checking your sign-in" with its engine stopped
+        // and nothing scheduled: fall back to the ordinary back-off retry.
+        if (stillWaiting()) failWithRetry(key, { kind: 'retrying', reasonKey: 'start-error' });
+      });
   }
 
   // Bookkeeping for `onConnectivityFailure` (spec §6.4 "a port's exit IP is sticky").
@@ -1848,7 +1866,7 @@ export function createPortManager(deps: PortManagerDeps): PortManager {
   }
 
   async function setAutoRotate(key: string, minutes: number): Promise<void> {
-    updatePort(key, { autoRotateMin: Math.max(0, Math.floor(minutes)) });
+    updatePort(key, { autoRotateMin: clampAutoRotateMin(minutes) });
     syncAutoRotate();
   }
 

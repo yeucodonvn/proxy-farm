@@ -3,6 +3,7 @@ import { closeSync, constants, copyFileSync, existsSync, fsyncSync, mkdirSync, o
 import { dirname } from 'node:path';
 import { makePortKey, type Account, type PortRow, type ProviderId, type Settings } from '../../shared/contracts';
 import type { SecretStore } from './secrets';
+import { renameSyncWithRetry } from './atomic-write';
 
 /** v2 (spec §6.8, rev 3): port keys are `<locationKey>#<n>`, each row pins its own
  * `server`, and server health (refused / last OK) is persisted per (account, server). */
@@ -441,7 +442,9 @@ export function createStateStore(filePath: string, secrets: SecretStore, options
       fsyncSync(fd);
       closeSync(fd);
       fd = undefined;
-      renameSync(tmpPath, filePath);
+      // Windows: antivirus/the indexer holding state.json for a moment makes a plain
+      // renameSync fail with EPERM, and that one failed save throws out of setState.
+      renameSyncWithRetry(tmpPath, filePath);
     } catch (err) {
       if (fd !== undefined) {
         try {

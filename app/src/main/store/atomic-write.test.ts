@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { writeFileAtomic } from './atomic-write';
+import { renameSyncWithRetry, writeFileAtomic } from './atomic-write';
 
 let dir: string;
 beforeEach(() => {
@@ -31,5 +31,52 @@ describe('writeFileAtomic', () => {
     mkdirSync(join(file, 'inside'), { recursive: true }); // a non-empty folder in the way
     await expect(writeFileAtomic(file, 'data', { backoffMs: 1 })).rejects.toThrow();
     expect(readdirSync(dir)).toEqual(['taken']);
+  });
+});
+
+describe('renameSyncWithRetry', () => {
+  const eperm = () => Object.assign(new Error('EPERM'), { code: 'EPERM' });
+
+  it('retries a transient EPERM with growing backoff, then succeeds', () => {
+    let calls = 0;
+    const sleeps: number[] = [];
+    renameSyncWithRetry('a', 'b', {
+      rename: () => {
+        calls += 1;
+        if (calls < 3) throw eperm();
+      },
+      sleep: (ms) => sleeps.push(ms),
+    });
+    expect(calls).toBe(3);
+    expect(sleeps).toEqual([40, 80]);
+  });
+
+  it('gives up after `retries` and rethrows the last error', () => {
+    let calls = 0;
+    expect(() =>
+      renameSyncWithRetry('a', 'b', {
+        retries: 2,
+        rename: () => {
+          calls += 1;
+          throw eperm();
+        },
+        sleep: () => undefined,
+      }),
+    ).toThrow('EPERM');
+    expect(calls).toBe(3);
+  });
+
+  it('does not retry a non-transient error', () => {
+    let calls = 0;
+    expect(() =>
+      renameSyncWithRetry('a', 'b', {
+        rename: () => {
+          calls += 1;
+          throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+        },
+        sleep: () => undefined,
+      }),
+    ).toThrow('ENOENT');
+    expect(calls).toBe(1);
   });
 });

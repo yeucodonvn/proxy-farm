@@ -1210,6 +1210,18 @@ describe('port manager', () => {
       expect((row.state as any).reasonKey).toBe('secret-unavailable');
     });
 
+    it('a corrupt (non-JSON) stored secret is secret-unavailable, not a thrown error', async () => {
+      const { manager, state, secrets } = setup({
+        targets: [{ key: 'zoogvpn:nl-ams', providerId: 'zoogvpn', country: 'NL', city: 'Amsterdam', label: 'Amsterdam', servers: ['10.0.0.1'] }],
+        port: { enabled: false, state: { kind: 'stopped' } },
+      });
+      secrets.saveSecret('z1-secret', '{not json');
+      await expect(manager.startPort('zoogvpn:nl-ams')).resolves.toBeUndefined();
+      const row = state.getState().ports[0];
+      expect(row.state.kind).toBe('retrying');
+      expect((row.state as any).reasonKey).toBe('secret-unavailable');
+    });
+
     it('exportPorts uses the LAN IPv4 address when lanSharing is on', async () => {
       const { manager, state } = setup({ targets: [] });
       state.setState((s) => ({ ...s, settings: { ...s.settings, lanSharing: true, proxyUser: 'proxy', proxyPass: 'pw' } }));
