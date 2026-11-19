@@ -8,7 +8,8 @@
  */
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, nativeTheme, powerMonitor, powerSaveBlocker, safeStorage, session, shell, Tray } from 'electron';
 import { autoUpdater } from 'electron-updater';
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
+import { portableUserDataDir } from './portable';
 import { writeFile } from 'node:fs/promises';
 import { networkInterfaces, release as osRelease } from 'node:os';
 import path from 'node:path';
@@ -103,6 +104,12 @@ export function runApp(): void {
   // the single-instance lock, which is scoped to the userData dir.
   const userDataOverride = process.env.PROXYFARM_USER_DATA_DIR;
   if (userDataOverride) app.setPath('userData', userDataOverride);
+  else {
+    // Portable build: a `portable` marker file next to the exe keeps every byte of
+    // state (state.json, secrets, logs, caches) in `data\` beside it instead of %APPDATA%.
+    const portableData = portableUserDataDir(app.isPackaged, process.execPath, existsSync);
+    if (portableData) app.setPath('userData', portableData);
+  }
 
   // `Proxy Farm --quit` asks a running instance to stop its engines and exit: Windows
   // has no SIGTERM for GUI apps, so scripts and the e2e suite quit it this way.

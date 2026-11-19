@@ -578,6 +578,18 @@ describe('controller facade', () => {
     expect((await facade.addPorts('zoogvpn:nl1', 1)).added.map((p) => p.accountId)).toEqual(['zoogvpn-2']);
   });
 
+  it('addPorts spreads HMA ports over every license key, least-loaded first', async () => {
+    const { facade } = setup();
+    const a = await addHma(facade, 'AAAA00-AAAA11-AAAA22');
+    const b = await addHma(facade, 'BBBB00-BBBB11-BBBB22');
+    expect(a.account?.id).not.toBe(b.account?.id);
+    const r1 = await facade.addPorts('hma:NL-AMS', 2);
+    const r2 = await facade.addPorts('hma:JP-TYO', 1);
+    const ids = [...r1.added, ...r2.added].map((p) => p.accountId);
+    expect(ids).toHaveLength(3);
+    expect(new Set(ids)).toEqual(new Set([a.account!.id, b.account!.id]));
+  });
+
   it('listServers / listTargets come from the port manager, with freeServers filled in', async () => {
     const { facade, portManager } = setup();
     await addHma(facade);
