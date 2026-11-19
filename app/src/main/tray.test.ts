@@ -95,6 +95,17 @@ describe('createTray', () => {
     expect(Menu.lastTemplate[0].label).toBe('1 port online');
   });
 
+  it('setOnlineCount with an unchanged count leaves the open menu alone (no lag on Windows)', () => {
+    const { handle } = setup(2);
+    const tray = handle.tray as FakeTray;
+    const menu = tray.contextMenu;
+    handle.setOnlineCount(2);
+    handle.setOnlineCount(2);
+    expect(tray.contextMenu).toBe(menu);
+    handle.setOnlineCount(3);
+    expect(tray.contextMenu).not.toBe(menu);
+  });
+
   it('destroy() tears down the underlying Tray', () => {
     const { handle } = setup(0);
     handle.destroy();

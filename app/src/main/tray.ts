@@ -109,11 +109,17 @@ export function createTray(opts: CreateTrayOptions): TrayHandle {
     tray.setContextMenu(opts.Menu.buildFromTemplate(buildTemplate(opts, label)));
   }
 
-  render(opts.initialOnlineCount);
+  let shown = opts.initialOnlineCount;
+  render(shown);
 
   return {
     tray,
     setOnlineCount(count: number) {
+      // Called on every ports-changed push (health probes, latency, …). Swapping the
+      // context menu while Windows has it open freezes or dismisses it, so only rebuild
+      // when the count it shows actually changed.
+      if (count === shown) return;
+      shown = count;
       render(count);
     },
     destroy() {
