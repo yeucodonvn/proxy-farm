@@ -8,21 +8,23 @@ import type { Account, ProviderId } from './contracts';
  * accounts adds no IPs — only one account need be *active* (used by the controller) at a time;
  * the rest are kept but idle. More exit IPs come from more locations, not more accounts.
  *
- * The `file` provider is the exception: each imported config is its own distinct server, so
- * every file account stays usable (no single "active" one).
+ * Exceptions, where every account stays usable (no single "active" one):
+ * - `file`: each imported config is its own distinct server.
+ * - `hma`: each license key is its own device with its own session quota, so extra keys
+ *   add capacity. New ports are spread over all keys, least-loaded first (accounts/pool.ts).
  */
 
 export const ACTIVE_META_KEY = 'active';
 
-/** Whether a provider uses the single-active-account model (every provider except `file`). */
+/** Whether a provider uses the single-active-account model (every provider except `file` and `hma`). */
 export function usesActiveAccountModel(providerId: ProviderId): boolean {
-  return providerId !== 'file';
+  return providerId !== 'file' && providerId !== 'hma';
 }
 
 /**
  * The active account id for a provider: the account flagged `meta.active==='1'`, else the
  * first account of that provider (the default), else undefined. Returns undefined for a
- * provider that does not use the model (e.g. `file`) — there every account is usable.
+ * provider that does not use the model (`file`, `hma`) — there every account is usable.
  */
 export function activeAccountId(accounts: readonly Account[], providerId: ProviderId): string | undefined {
   if (!usesActiveAccountModel(providerId)) return undefined;
@@ -32,7 +34,7 @@ export function activeAccountId(accounts: readonly Account[], providerId: Provid
 
 /**
  * Whether `account` is the one the controller should use for its provider. True for every
- * account of a provider that does not use the model (`file`); otherwise only the active one.
+ * account of a provider that does not use the model (`file`, `hma`); otherwise only the active one.
  */
 export function isActiveAccount(account: Account, accounts: readonly Account[]): boolean {
   if (!usesActiveAccountModel(account.providerId)) return true;

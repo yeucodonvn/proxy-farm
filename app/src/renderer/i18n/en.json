@@ -41,7 +41,7 @@
         "initials": "H",
         "licenseLabel": "License key",
         "licensePlaceholder": "XXXXXX-XXXXXX-XXXXXX",
-        "licenseHint": "Add HMA by your subscription license key — fetches fresh servers from HMA directly, no local install needed.",
+        "licenseHint": "Add HMA by your subscription license key — fetches fresh servers from HMA directly, no local install needed. You can add several keys: new ports are spread across all of them.",
         "licenseAdd": "Add with license key",
         "licenseAdding": "Registering…",
         "loadLocations": "Load locations",

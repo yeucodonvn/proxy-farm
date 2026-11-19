@@ -41,7 +41,7 @@
         "initials": "H",
         "licenseLabel": "Mã license",
         "licensePlaceholder": "XXXXXX-XXXXXX-XXXXXX",
-        "licenseHint": "Thêm HMA bằng mã license của gói đăng ký — tự lấy server tươi trực tiếp từ HMA, không cần cài app.",
+        "licenseHint": "Thêm HMA bằng mã license của gói đăng ký — tự lấy server tươi trực tiếp từ HMA, không cần cài app. Có thể thêm nhiều mã: cổng mới được chia đều cho mọi mã.",
         "licenseAdd": "Thêm bằng mã license",
         "licenseAdding": "Đang đăng ký…",
         "loadLocations": "Tải danh sách vị trí",
